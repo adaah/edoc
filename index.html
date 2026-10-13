@@ -475,7 +475,10 @@ select.inp.mini-sel{width:auto;max-width:190px;height:32px;padding:0 8px;font-si
 .gab td.na{background:#cfcfcf}
 .cols.one .col{width:100%;padding:0;border:0}
 .bub-row{display:flex;justify-content:center;gap:22px}
+.bub-grp{display:flex;flex-direction:column;align-items:stretch}
+.bub-in{display:flex;gap:22px;align-items:flex-start}
 .bub-cap{text-align:center;font-weight:700;font-size:10.5px;height:16px}
+.bub-grp.multi .bub-cap{border-bottom:1px solid #000;margin:0 6px 4px;height:15px;line-height:13px}
 .bubt{border-collapse:collapse;border:1.5px solid #000}
 .bubt td{padding:2px 6px;height:20px;white-space:nowrap}
 .bubt tr.z td{background:#e3e3e3}
@@ -956,20 +959,26 @@ function gabaritoTables(d){ return d.f.gabarito === 'bolhas' ? gabaritoBolhas(d)
 function gabaritoBolhas(d){
   const items = [];
   let n = 0;
-  d.sections.forEach(s => s.questions.forEach(q => { n++; items.push({ n, sec: (s.name||'').toUpperCase(), k: nAltOf(q, d) }); }));
+  d.sections.forEach((s, si) => s.questions.forEach(q => { n++; items.push({ n, si, sec: (s.name||'').toUpperCase(), k: nAltOf(q, d) }); }));
   if (!items.length) return [];
   const anyNamed = d.sections.some(s => s.name && s.name.trim() && s.questions.length);
   const maxK = Math.max(...items.map(i => i.k));
-  const tables = [];
-  for (let i = 0; i < items.length; i += 10){
-    const chunk = items.slice(i, i+10);
-    const secs = [...new Set(chunk.map(c => c.sec))];
-    const cap = anyNamed ? `<div class="bub-cap">${secs.length === 1 ? esc(secs[0]) : '&nbsp;'}</div>` : '';
-    tables.push(`<div class="bub">${cap}<table class="bubt">${chunk.map((it, ri) => `<tr${ri % 2 === 0 ? ' class="z"' : ''}><td class="bn">${it.n}</td><td class="bb">${Array.from({length: maxK}, (_, j) => j < it.k ? `<span class="o">${LETRAS[j]}</span>` : `<span class="o off"></span>`).join('')}</td></tr>`).join('')}</table></div>`);
-  }
+  // colunas de até 10 questões; com disciplinas nomeadas, cada coluna pertence a uma só disciplina
+  const cols = [];
+  items.forEach(it => {
+    const last = cols[cols.length - 1];
+    if (last && last.items.length < 10 && (!anyNamed || last.si === it.si)) last.items.push(it);
+    else cols.push({ si: it.si, sec: it.sec, items: [it] });
+  });
+  const tableHTML = c => `<table class="bubt">${c.items.map((it, ri) => `<tr${ri % 2 === 0 ? ' class="z"' : ''}><td class="bn">${it.n}</td><td class="bb">${Array.from({length: maxK}, (_, j) => j < it.k ? `<span class="o">${LETRAS[j]}</span>` : `<span class="o off"></span>`).join('')}</td></tr>`).join('')}</table>`;
   const per = Math.max(1, Math.floor(704 / (40 + maxK * 21 + 22)));
   const rows = [];
-  for (let i = 0; i < tables.length; i += per) rows.push(`<div class="bub-row">${tables.slice(i, i+per).join('')}</div>`);
+  for (let i = 0; i < cols.length; i += per){
+    // na mesma linha, colunas seguidas da mesma disciplina ganham um título só, centralizado entre elas
+    const linha = cols.slice(i, i + per), grupos = [];
+    linha.forEach(c => { const g = grupos[grupos.length - 1]; if (anyNamed && g && g.si === c.si) g.cols.push(c); else grupos.push({ si: c.si, sec: c.sec, cols: [c] }); });
+    rows.push(`<div class="bub-row">${grupos.map(g => `<div class="bub-grp${g.cols.length > 1 ? ' multi' : ''}">${anyNamed ? `<div class="bub-cap">${g.sec ? esc(g.sec) : '&nbsp;'}</div>` : ''}<div class="bub-in">${g.cols.map(tableHTML).join('')}</div></div>`).join('')}</div>`);
+  }
   return rows;
 }
 function gabaritoGrade(d){
